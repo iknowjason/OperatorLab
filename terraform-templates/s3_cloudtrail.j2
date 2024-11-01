@@ -77,9 +77,24 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_cloudwatch_role.name
 }
 
-# Create a CloudWatch Log Group and Stream 
+# Create Operator Log Group
 resource "aws_cloudwatch_log_group" "operator_log_group" {
   name = "operator_log_group"
+}
+
+# Create Security Log Group
+resource "aws_cloudwatch_log_group" "security" {
+  name = "Security"
+}
+
+# Create sysmon Log Group
+resource "aws_cloudwatch_log_group" "sysmon" {
+  name  = "Microsoft-Windows-Sysmon/Operational"
+}
+
+# Create powershell Log Group
+resource "aws_cloudwatch_log_group" "powershell" {
+  name  = "Microsoft-Windows-Powershell/Operational"
 }
 
 # Kinesis Data Firehose delivery stream to send CloudWatch Logs to S3
@@ -95,26 +110,42 @@ resource "aws_kinesis_firehose_delivery_stream" "cloudwatch_logs_stream" {
 
 resource "aws_cloudwatch_log_subscription_filter" "firehose_subscription_filter_security" {
   name            = "firehose-subscription-filter-security"
-  log_group_name  = "Security"
+  log_group_name  = aws_cloudwatch_log_group.security.name
   filter_pattern  = ""
   destination_arn = aws_kinesis_firehose_delivery_stream.cloudwatch_logs_stream.arn
   role_arn        = aws_iam_role.cloudtrail_role.arn
 
   depends_on = [
     aws_cloudwatch_log_group.operator_log_group,
+    aws_cloudwatch_log_group.security,
     aws_kinesis_firehose_delivery_stream.cloudwatch_logs_stream,
   ]
 }
 
 resource "aws_cloudwatch_log_subscription_filter" "firehose_subscription_filter_sysmon" {
   name            = "firehose-subscription-filter-sysmon"
-  log_group_name  = "Microsoft-Windows-Sysmon/Operational"
+  log_group_name  = aws_cloudwatch_log_group.sysmon.name 
   filter_pattern  = ""
   destination_arn = aws_kinesis_firehose_delivery_stream.cloudwatch_logs_stream.arn
   role_arn        = aws_iam_role.cloudtrail_role.arn
 
   depends_on = [
     aws_cloudwatch_log_group.operator_log_group,
+    aws_cloudwatch_log_group.sysmon,
+    aws_kinesis_firehose_delivery_stream.cloudwatch_logs_stream,
+  ]
+}
+
+resource "aws_cloudwatch_log_subscription_filter" "firehose_subscription_filter_powershell" {
+  name            = "firehose-subscription-filter-powershell"
+  log_group_name  = aws_cloudwatch_log_group.powershell.name
+  filter_pattern  = ""
+  destination_arn = aws_kinesis_firehose_delivery_stream.cloudwatch_logs_stream.arn
+  role_arn        = aws_iam_role.cloudtrail_role.arn
+
+  depends_on = [
+    aws_cloudwatch_log_group.operator_log_group,
+    aws_cloudwatch_log_group.powershell,
     aws_kinesis_firehose_delivery_stream.cloudwatch_logs_stream,
   ]
 
@@ -154,8 +185,7 @@ resource "aws_s3_bucket_policy" "logs_bucket" {
 
 resource "aws_s3_bucket" "logs_bucket" {
   bucket = "logs-bucket-${local.rs}"
-  #aws_s3_bucket_acl  = "private"
-  #acl    = "private"
+  force_destroy = true
 }
 
 resource "aws_cloudtrail" "operator_logs" {
