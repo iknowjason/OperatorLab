@@ -5,7 +5,6 @@ set -e
 exec > >(sudo tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
 # any important variables
-INSTALL_RECON=true
 HOME=/home/ubuntu
 echo "Setting HOME to $HOME"
 
@@ -28,26 +27,16 @@ echo "export HOME=/home/ubuntu" >> /home/ubuntu/.bashrc
 source /home/ubuntu/.profile
 source /home/ubuntu/.bashrc
 
-# Install recon tools if true 
-if [ "$INSTALL_RECON" = true ]; then
-    echo "Installing recon tools"
+echo "Download and install ollama"
+curl -fsSL https://ollama.com/install.sh | sh
 
-    echo "Install Cloud Edge"
-    cd $HOME
-    git clone https://github.com/iknowjason/edge.git
-    cd edge
-    go build edge.go
+echo "Start ollama service"
+systemctl start ollama
 
-    echo "Install Masscan and jq"
-    sudo apt-get install masscan jq -y
+echo "Sleep 10"
+sleep 10 
 
-    echo "Install Project Discovery"
-    source ~/.bashrc
-    go install -v github.com/projectdiscovery/pdtm/cmd/pdtm@latest
-    $HOME/go/bin/pdtm -install-all
-
-else
-    echo "Skipping recon tools install"
-fi
+echo "pull the llama 3.2 3B parameters (2.0GB) model"
+ollama pull llama3.2
 
 echo "End of bootstrap script"

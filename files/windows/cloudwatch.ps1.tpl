@@ -105,10 +105,51 @@ if ($attempts -eq 5) {
     lwrite("Failed to copy file after 5 attempts")
 }
 
-# Run command to fetch logs and config
-lwrite("Run command to fetch logs and config")
+# Run command to fetch logs and config and start service
+lwrite("Run command to fetch logs and config and start service")
 cd "C:\Program Files\Amazon\AmazonCloudWatchAgent\"
-& .\amazon-cloudwatch-agent-ctl.ps1 -a fetch-config -m ec2 -c file:config.json -s
+$serviceName = "AmazonCloudWatch"
+$startCommand = ".\amazon-cloudwatch-agent-ctl.ps1 -a fetch-config -m ec2 -c file:config.json -s"
+
+$maxRetries = 5
+$retryDelay = 5
+$attempt = 0
+$serviceStarted = $false
+
+$service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+if (-not $service) {
+    lwrite("Cloudwatch Service not found")
+}
+
+while ($attempt -lt $maxRetries -and -not $serviceStarted) {
+    $service.Refresh()
+
+    if ($service.Status -eq 'Running') {
+        lwrite("Cloudwatch is already running")
+        $serviceStarted = $true
+        break
+    } else {
+        lwrite("Cloudwatch is not running. Attempting to start")
+        Invoke-Expression $startCommand
+
+        Start-Sleep -Seconds $retryDelay
+
+        $service.Refresh()
+        if ($service.Status -eq 'Running') {
+            lwrite("Cloudwatch started successfully")
+            $serviceStarted = $true
+        } else {
+            lwrite("Service is still not running")
+        }
+
+        $attempt++
+    }
+}
+
+if (-not $serviceStarted) {
+    lwrite("Failed to start cloudwatch after $maxRetries attempts.")
+}
+#& .\amazon-cloudwatch-agent-ctl.ps1 -a fetch-config -m ec2 -c file:config.json -s
 
 
 lwrite("End of cloudwatch.ps1")
